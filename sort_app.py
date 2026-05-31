@@ -10,16 +10,42 @@ st.set_page_config(layout="wide", page_title="Rank-1 UPSC Command Center", page_
 # ----------------------------------------------------
 # 📊 LOCAL HARD DRIVE STORAGE FILE ROUTING MAPPINGS
 # ----------------------------------------------------
-GOOGLE_DRIVE_STREAM = "G:\\My Drive\\UPSC_Personal_Vault"
+FOLDER_ID = "1nOHMq4Cliu8-8RggR6ncGZgFPRdKjZNU"
 
-CURRENT_WORKSPACE = GOOGLE_DRIVE_STREAM
-UNSORTED_STAGE_DIR = os.path.join(GOOGLE_DRIVE_STREAM, "UPSC_Text_Named_Outputs")
-FINAL_SORTED_VAULT = os.path.join(GOOGLE_DRIVE_STREAM, "UPSC_Syllabus_Vault")
-TAXONOMY_JSON_PATH = os.path.join(GOOGLE_DRIVE_STREAM, "upsc_dynamic_taxonomy.json")
-METADATA_JSON_PATH = os.path.join(GOOGLE_DRIVE_STREAM, "upsc_metadata_config.json")
-INTERFACE_CONFIG_PATH = os.path.join(GOOGLE_DRIVE_STREAM, "upsc_interface_settings.json")
-PRACTICE_CANVAS_PATH = os.path.join(GOOGLE_DRIVE_STREAM, "upsc_self_practice_canvas.json")
-PYQ_DATABASE_PATH = os.path.join(GOOGLE_DRIVE_STREAM, "upsc_historical_pyqs.json")
+from googleapiclient.discovery import build
+from google.oauth2 import service_account
+import io
+from googleapiclient.http import MediaIoBaseDownload
+
+# Streamlit Secure Cloud Credentials Connection Layer
+if "gcp_service_account" in st.secrets:
+    creds = service_account.Credentials.from_service_account_info(st.secrets["gcp_service_account"])
+    drive_service = build('drive', 'v3', credentials=creds)
+else:
+    st.error("Google Cloud Platform Credentials Key Missing from Streamlit Secrets Panel.")
+    st.stop()
+
+def cloud_download_json(filename, default_factory):
+    try:
+        results = drive_service.files().list(q=f"'{FOLDER_ID}' in parents and name='{filename}'", fields="files(id)").execute()
+        files = results.get('files', [])
+        if not files: return default_factory()
+        request = drive_service.files().get_media(fileId=files[0]['id'])
+        fh = io.BytesIO()
+        downloader = MediaIoBaseDownload(fh, request)
+        done = False
+        while not done: _, done = downloader.next_chunk()
+        fh.seek(0)
+        return json.loads(fh.read().decode('utf-8'))
+    except Exception:
+        return default_factory()
+
+# Cloud Virtual File Path Definitions
+TAXONOMY_JSON_PATH = "upsc_dynamic_taxonomy.json"
+METADATA_JSON_PATH = "upsc_metadata_config.json"
+INTERFACE_CONFIG_PATH = "upsc_interface_settings.json"
+PRACTICE_CANVAS_PATH = "upsc_self_practice_canvas.json"
+PYQ_DATABASE_PATH = "upsc_historical_pyqs.json"
 
 os.makedirs(UNSORTED_STAGE_DIR, exist_ok=True)
 os.makedirs(FINAL_SORTED_VAULT, exist_ok=True)
